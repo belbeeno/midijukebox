@@ -48,6 +48,7 @@ import androidx.compose.material.TextField
 import androidx.compose.material.darkColors
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.Face
 import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Search
@@ -72,6 +73,7 @@ import androidx.compose.ui.res.useResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlin.concurrent.thread
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
@@ -168,6 +170,8 @@ fun Launcher(): LauncherController {
 
     /* MIDI File */
     var selectedMIDIFile: File? by remember { mutableStateOf(null) }
+    var playlist: File? by remember { mutableStateOf(null) }
+    var playlistPointer: UInt = 0u
 
     /* MIDI Device */
     val midiDevices = MidiSystem.getMidiDeviceInfo().map { it.name }.toList().filter { it != "Real Time Sequencer" }
@@ -194,6 +198,8 @@ fun Launcher(): LauncherController {
     var freeze by remember { mutableStateOf(false) }
     var thinking by remember { mutableStateOf(false) }
 
+    var beginMidis2jam2PlaylistFwd : (() -> UInt)? = null
+
     fun beginMidis2jam2() {
         try {
             Execution.start(
@@ -219,7 +225,19 @@ fun Launcher(): LauncherController {
                 onFinish = {
                     freeze = false
                     thinking = false
-                    MIDISearchFrame.unlock()
+                    if (playlist != null) {
+                        println("Launching into next after 1000L!")
+                        Thread.dumpStack()
+                        thread(start = true) {
+                            Thread.sleep(1000)
+                            beginMidis2jam2PlaylistFwd!!.invoke()
+                            println("Invoke called!")
+                        }
+                    }
+                    else {
+                        println("Unlocking MidiSearchFrame")
+                        MIDISearchFrame.unlock()                        
+                    }
                 }
             )
         } catch (e: Throwable) {
@@ -227,6 +245,34 @@ fun Launcher(): LauncherController {
             thinking = false
             e.display()
         }
+    }
+
+    beginMidis2jam2PlaylistFwd = {
+        println("FGSFDS - This is a directory!")
+        val files = playlist!!.listFiles()
+        var nextTime = UInt.MAX_VALUE
+        var nextPath = ""
+        for (file in files) {
+            val timeIterator = file.nameWithoutExtension.split("-")[0].toUInt()
+            if (timeIterator > playlistPointer && timeIterator < nextTime) {
+                nextTime = timeIterator
+                nextPath = file.getAbsolutePath()
+                println(timeIterator)
+            }
+        }
+        println(nextPath)
+        println("---")
+        if (nextTime != UInt.MAX_VALUE) {
+            playlistPointer = nextTime
+            selectedMIDIFile = File(nextPath)
+            beginMidis2jam2()
+            println("FGSFEDS done")
+        }
+        else {
+            playlist = null
+            println("Playlist is over")
+        }
+        0u
     }
 
     var midiFileTextField: ((File) -> Unit)? = null
@@ -346,30 +392,18 @@ fun Launcher(): LauncherController {
                                 horizontalArrangement = Arrangement.Center,
                                 modifier = Modifier.fillMaxWidth()
                             ) {
-//                                Button(
-//                                    onClick = {
-//                                        VideoRecorderDialog.openDialog()
-//                                    },
-//                                    modifier = Modifier.width(60.dp).height(60.dp).padding(0.dp, 0.dp, 0.dp, 16.dp),
-//                                    enabled = selectedMIDIFile != null && !freeze,
-//                                    colors = ButtonDefaults.buttonColors(backgroundColor = Color.hsl(0f, 0.72f, 0.26f))
-//                                ) {
-//                                    Row(
-//                                        modifier = Modifier.fillMaxWidth(),
-//                                        verticalAlignment = Alignment.CenterVertically,
-//                                        horizontalArrangement = Arrangement.SpaceEvenly
-//                                    ) {
-//                                        Icon(
-//                                            painter = painterResource("dot.svg"),
-//                                            contentDescription = null,
-//                                            modifier = Modifier.width(12.dp).height(12.dp)
-//                                        )
-//                                    }
-//                                }
                                 Spacer(Modifier.width(16.dp))
                                 Button(
                                     onClick = {
-                                        beginMidis2jam2()
+                                        playlist = null
+                                        if (selectedMIDIFile!!.isDirectory() == true) {
+                                            playlist = selectedMIDIFile
+                                            playlistPointer = 0u
+                                            beginMidis2jam2PlaylistFwd.invoke()
+                                        }
+                                        else {
+                                            beginMidis2jam2()
+                                        }
                                     },
                                     modifier = Modifier.width(120.dp).height(60.dp).padding(0.dp, 0.dp, 0.dp, 16.dp),
                                     enabled = selectedMIDIFile != null && !freeze
@@ -570,6 +604,35 @@ fun MIDIFileTextField(
         label = { Text(i18n.getString("configuration.midi_file")) },
         trailingIcon = {
             Row(modifier = Modifier.width(128.dp), horizontalArrangement = Arrangement.End) {
+                Icon(
+                    Icons.Filled.Face,
+                    contentDescription = "Pull from directory",
+                    modifier = Modifier.clickable {
+                        println("FGSFDS - Assigning directory")
+                        /* If the directory is bad, just revert to the home directory */
+                        if (!File(launcherState.getProperty("lastdir")).exists()) {
+                            launcherState.setProperty("lastdir", USER_HOME_DIRECTORY.absolutePath)
+                        }
+                        /* Create file chooser modal */
+                        var chooser: JFileChooser = JFileChooser(File(launcherState.getProperty("lastdir")))
+                        chooser.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY)
+                        chooser.run {
+                            preferredSize = Dimension(800, 600)
+                            dialogTitle = "Select MIDI directory"
+                            isMultiSelectionEnabled = false
+                            actionMap.get("viewTypeDetails").actionPerformed(null) // Switch to "detail" view
+
+                            /* Update path if dialog succeeds */
+                            if (showOpenDialog(null) == JFileChooser.APPROVE_OPTION) {
+                                selectedFile = this.selectedFile
+                                launcherState.setProperty("lastdir", this.selectedFile.getAbsolutePath())
+                                onChangeBySearchButton(selectedFile ?: return@run) // Should be safe
+                                logger().info("Selected MIDI directory ${selectedFile?.getAbsolutePath()}")
+                            }
+                        }
+                    }.pointerHoverIcon(PointerIconDefaults.Hand, true)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
                 Icon(
                     Icons.Filled.List,
                     contentDescription = i18n.getString("midisearch.title"),

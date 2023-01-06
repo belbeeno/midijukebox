@@ -32,15 +32,6 @@ import androidx.compose.ui.window.rememberWindowState
 import com.formdev.flatlaf.FlatDarkLaf
 import com.install4j.api.launcher.SplashScreen
 import com.install4j.api.launcher.StartupNotification
-import org.wysko.midis2jam2.gui.Launcher
-import org.wysko.midis2jam2.gui.LauncherController
-import org.wysko.midis2jam2.gui.UpdateChecker.checkForUpdates
-import org.wysko.midis2jam2.gui.launcherState
-import org.wysko.midis2jam2.midi.search.MIDISearchFrame
-import org.wysko.midis2jam2.starter.Execution
-import org.wysko.midis2jam2.starter.loadSequencerJob
-import org.wysko.midis2jam2.util.Utils
-import org.wysko.midis2jam2.util.logger
 import java.awt.Font
 import java.awt.datatransfer.DataFlavor
 import java.awt.dnd.DnDConstants
@@ -52,20 +43,23 @@ import java.util.Properties
 import javax.swing.UIManager
 import javax.swing.plaf.FontUIResource
 import kotlin.system.exitProcess
+import org.wysko.midis2jam2.gui.Launcher
+import org.wysko.midis2jam2.gui.LauncherController
+import org.wysko.midis2jam2.gui.UpdateChecker.checkForUpdates
+import org.wysko.midis2jam2.gui.launcherState
+import org.wysko.midis2jam2.midi.search.MIDISearchFrame
+import org.wysko.midis2jam2.starter.Execution
+import org.wysko.midis2jam2.starter.loadSequencerJob
+import org.wysko.midis2jam2.util.Utils
+import org.wysko.midis2jam2.util.logger
 
-/**
- * The user's home folder.
- */
+/** The user's home folder. */
 val USER_HOME: File = File(System.getProperty("user.home"))
 
-/**
- * The configuration directory.
- */
+/** The configuration directory. */
 val CONFIGURATION_DIRECTORY: File = File(USER_HOME, ".midis2jam2")
 
-/**
- * When the application is launched, the launcher controller is stored here.
- */
+/** When the application is launched, the launcher controller is stored here. */
 var launcherController: LauncherController? = null
 
 fun setUIFont(f: FontUIResource?) {
@@ -77,9 +71,7 @@ fun setUIFont(f: FontUIResource?) {
     }
 }
 
-/**
- * Where it all begins.
- */
+/** Where it all begins. */
 @ExperimentalGraphicsApi
 @ExperimentalComposeUiApi
 @ExperimentalFoundationApi
@@ -96,7 +88,11 @@ fun main(args: Array<String>) {
     try {
         UIManager.setLookAndFeel(FlatDarkLaf())
         val createFont =
-            Font.createFont(Font.TRUETYPE_FONT, Main.javaClass.getResourceAsStream("/tahoma.ttf")).deriveFont(12f)
+                Font.createFont(
+                                Font.TRUETYPE_FONT,
+                                Main.javaClass.getResourceAsStream("/tahoma.ttf")
+                        )
+                        .deriveFont(12f)
         setUIFont(FontUIResource(createFont))
     } catch (e: Exception) {
         with(Main.logger()) {
@@ -107,68 +103,85 @@ fun main(args: Array<String>) {
 
     if (args.isNotEmpty()) {
         Execution.start(
-            properties = Properties().apply {
-                setProperty("midi_file", args.first())
-                setProperty("midi_device", launcherState.getProperty("midi_device"))
-            },
-            onStart = {
-                launcherController?.setFreeze?.invoke(true)
-                MIDISearchFrame.lock()
-            },
-            onReady = {},
-            onFinish = {
-                launcherController?.setFreeze?.invoke(false)
-                MIDISearchFrame.unlock()
-                exitProcess(0)
-            }
+                properties =
+                        Properties().apply {
+                            setProperty("midi_file", args.first())
+                            setProperty("midi_device", launcherState.getProperty("midi_device"))
+                        },
+                onStart = {
+                    launcherController?.setFreeze?.invoke(true)
+                    MIDISearchFrame.lock()
+                },
+                onReady = {},
+                onFinish = {
+                    launcherController?.setFreeze?.invoke(false)
+                    MIDISearchFrame.unlock()
+                    exitProcess(0)
+                }
         )
         SplashScreen.hide()
     } else {
         application {
             Window(
-                onCloseRequest = ::exitApplication,
-                title = "midis2jam2 launcher",
-                state = rememberWindowState(
-                    placement = WindowPlacement.Maximized,
-                    position = WindowPosition(Alignment.Center)
-                ),
-                icon = BitmapPainter(useResource("ico/icon32.png", ::loadImageBitmap))
+                    onCloseRequest = ::exitApplication,
+                    title = "midis2jam2 launcher",
+                    state =
+                            rememberWindowState(
+                                    placement = WindowPlacement.Maximized,
+                                    position = WindowPosition(Alignment.Center)
+                            ),
+                    icon = BitmapPainter(useResource("ico/icon32.png", ::loadImageBitmap))
             ) {
                 launcherController = Launcher()
-                this.window.contentPane.dropTarget = object : DropTarget() {
-                    @Synchronized
-                    override fun drop(dtde: DropTargetDropEvent) {
-                        dtde.let {
-                            it.acceptDrop(DnDConstants.ACTION_REFERENCE)
-                            (it.transferable.getTransferData(DataFlavor.javaFileListFlavor) as List<*>).firstOrNull()
-                                ?.let { file -> launcherController?.setSelectedFile?.invoke(file as File) }
+                this.window.contentPane.dropTarget =
+                        object : DropTarget() {
+                            @Synchronized
+                            override fun drop(dtde: DropTargetDropEvent) {
+                                dtde.let {
+                                    it.acceptDrop(DnDConstants.ACTION_REFERENCE)
+                                    (it.transferable.getTransferData(
+                                                    DataFlavor.javaFileListFlavor
+                                            ) as
+                                                    List<*>)
+                                            .firstOrNull()
+                                            ?.let { file ->
+                                                launcherController?.setSelectedFile?.invoke(
+                                                        file as File
+                                                )
+                                            }
+                                }
+                            }
                         }
-                    }
-                }
             }
             checkForUpdates() // I'm checking for updates, whether you like it or not.
             /* Register subsequent invocations */
             StartupNotification.registerStartupListener {
                 if (launcherController?.getFreeze?.invoke() != true) {
                     Execution.start(
-                        properties = Properties().apply {
-                            setProperty(
-                                "midi_file",
-                                it.run {
-                                    if (it.startsWith('"') && it.endsWith('"')) drop(1).dropLast(1) else this
-                                }
-                            )
-                            setProperty("midi_device", launcherState.getProperty("midi_device"))
-                        },
-                        onStart = {
-                            launcherController?.setFreeze?.invoke(true)
-                            MIDISearchFrame.lock()
-                        },
-                        onReady = {},
-                        onFinish = {
-                            launcherController?.setFreeze?.invoke(false)
-                            MIDISearchFrame.unlock()
-                        }
+                            properties =
+                                    Properties().apply {
+                                        setProperty(
+                                                "midi_file",
+                                                it.run {
+                                                    if (it.startsWith('"') && it.endsWith('"'))
+                                                            drop(1).dropLast(1)
+                                                    else this
+                                                }
+                                        )
+                                        setProperty(
+                                                "midi_device",
+                                                launcherState.getProperty("midi_device")
+                                        )
+                                    },
+                            onStart = {
+                                launcherController?.setFreeze?.invoke(true)
+                                MIDISearchFrame.lock()
+                            },
+                            onReady = {},
+                            onFinish = {
+                                launcherController?.setFreeze?.invoke(false)
+                                MIDISearchFrame.unlock()
+                            }
                     )
                 }
             }
@@ -176,7 +189,5 @@ fun main(args: Array<String>) {
     }
 }
 
-/**
- * The entrypoint class. Used for logging purposes.
- */
+/** The entrypoint class. Used for logging purposes. */
 object Main

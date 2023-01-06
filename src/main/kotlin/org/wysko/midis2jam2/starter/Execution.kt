@@ -315,7 +315,7 @@ private class M2J2Execution(
 
     override fun stop() {
         stop(false)
-        onFinish()
+        //onFinish()
     }
 
     override fun simpleInitApp() {
