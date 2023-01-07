@@ -37,6 +37,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.Button
 import androidx.compose.material.Divider
@@ -70,10 +71,10 @@ import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.res.loadImageBitmap
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.useResource
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import kotlin.concurrent.thread
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
@@ -171,7 +172,9 @@ fun Launcher(): LauncherController {
     /* MIDI File */
     var selectedMIDIFile: File? by remember { mutableStateOf(null) }
     var playlist: File? by remember { mutableStateOf(null) }
-    var playlistPointer: UInt = 0u
+
+    /* Playlist pointer */
+    var playlistPointer by remember { mutableStateOf(0) }
 
     /* MIDI Device */
     val midiDevices = MidiSystem.getMidiDeviceInfo().map { it.name }.toList().filter { it != "Real Time Sequencer" }
@@ -226,13 +229,8 @@ fun Launcher(): LauncherController {
                     freeze = false
                     thinking = false
                     if (playlist != null) {
-                        println("Launching into next after 1000L!")
-                        Thread.dumpStack()
-                        thread(start = true) {
-                            Thread.sleep(1000)
-                            beginMidis2jam2PlaylistFwd!!.invoke()
-                            println("Invoke called!")
-                        }
+                        beginMidis2jam2PlaylistFwd!!.invoke()
+                        println("Invoke called!")
                     }
                     else {
                         println("Unlocking MidiSearchFrame")
@@ -250,10 +248,10 @@ fun Launcher(): LauncherController {
     beginMidis2jam2PlaylistFwd = {
         println("FGSFDS - This is a directory!")
         val files = playlist!!.listFiles()
-        var nextTime = UInt.MAX_VALUE
+        var nextTime = Integer.MAX_VALUE
         var nextPath = ""
         for (file in files) {
-            val timeIterator = file.nameWithoutExtension.split("-")[0].toUInt()
+            val timeIterator = Integer.parseInt(file.nameWithoutExtension.split("-")[0])
             if (timeIterator > playlistPointer && timeIterator < nextTime) {
                 nextTime = timeIterator
                 nextPath = file.getAbsolutePath()
@@ -262,13 +260,14 @@ fun Launcher(): LauncherController {
         }
         println(nextPath)
         println("---")
-        if (nextTime != UInt.MAX_VALUE) {
+        if (nextTime != Integer.MAX_VALUE) {
             playlistPointer = nextTime
             selectedMIDIFile = File(nextPath)
             beginMidis2jam2()
             println("FGSFEDS done")
         }
         else {
+            selectedMIDIFile = playlist
             playlist = null
             println("Playlist is over")
         }
@@ -276,6 +275,29 @@ fun Launcher(): LauncherController {
     }
 
     var midiFileTextField: ((File) -> Unit)? = null
+
+    @Composable
+    fun NumberTextField() {
+        var text: String? by remember { mutableStateOf("") }
+        TextField(
+            value = text!!,
+            onValueChange = {
+                try {
+                    println("FGSFDS trying to parse the value " + it.toString())
+                    playlistPointer = Integer.parseInt(it.toString())
+                }
+                catch (ex : NumberFormatException) {
+                    println("FAILURE " + ex.toString())
+                    playlistPointer = 0
+                }
+                text = playlistPointer.toString()
+            },
+            singleLine = true,
+            modifier = Modifier.padding(0.dp, 0.dp, 0.dp, 16.dp).width(500.dp),
+            label = { Text("Playlist Position") },
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+        )
+    }
 
     MaterialTheme(darkColors()) {
         Surface(
@@ -315,6 +337,7 @@ fun Launcher(): LauncherController {
                                 selectedMIDIFile = it
                                 launcherSelectedMIDIFile = it
                             }
+                            NumberTextField()
                             SimpleExposedDropDownMenu(
                                 values = midiDevices,
                                 selectedIndex = midiDevices.indexOf(selectedMidiDevice),
@@ -398,7 +421,6 @@ fun Launcher(): LauncherController {
                                         playlist = null
                                         if (selectedMIDIFile!!.isDirectory() == true) {
                                             playlist = selectedMIDIFile
-                                            playlistPointer = 0u
                                             beginMidis2jam2PlaylistFwd.invoke()
                                         }
                                         else {
