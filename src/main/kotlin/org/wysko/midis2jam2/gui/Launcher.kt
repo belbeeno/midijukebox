@@ -251,11 +251,20 @@ fun Launcher(): LauncherController {
         var nextTime = Integer.MAX_VALUE
         var nextPath = ""
         for (file in files) {
-            val timeIterator = Integer.parseInt(file.nameWithoutExtension.split("-")[0])
-            if (timeIterator > playlistPointer && timeIterator < nextTime) {
-                nextTime = timeIterator
-                nextPath = file.getAbsolutePath()
-                println(timeIterator)
+            if (!(file?.extension.equals("mid") == true || file?.extension.equals("midi") == true))
+            {
+                continue
+            }
+            try {
+                val timeIterator = Integer.parseInt(file.nameWithoutExtension.split("-")[0])
+                if (timeIterator > playlistPointer && timeIterator < nextTime) {
+                    nextTime = timeIterator
+                    nextPath = file.getAbsolutePath()
+                    println(timeIterator)
+                }
+            }
+            catch (ex : Exception) {
+                println("Skipping " + file.nameWithoutExtension)
             }
         }
         println(nextPath)
