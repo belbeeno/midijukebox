@@ -174,7 +174,7 @@ fun Launcher(): LauncherController {
     var playlist: File? by remember { mutableStateOf(null) }
 
     /* Playlist pointer */
-    var playlistPointer by remember { mutableStateOf(0) }
+    var playlistPointer: Long by remember { mutableStateOf(0L) }
 
     /* MIDI Device */
     val midiDevices = MidiSystem.getMidiDeviceInfo().map { it.name }.toList().filter { it != "Real Time Sequencer" }
@@ -248,7 +248,7 @@ fun Launcher(): LauncherController {
     beginMidis2jam2PlaylistFwd = {
         println("FGSFDS - This is a directory!")
         val files = playlist!!.listFiles()
-        var nextTime = Integer.MAX_VALUE
+        var nextTime = Long.MAX_VALUE
         var nextPath = ""
         for (file in files) {
             if (!(file?.extension.equals("mid") == true || file?.extension.equals("midi") == true))
@@ -256,20 +256,20 @@ fun Launcher(): LauncherController {
                 continue
             }
             try {
-                val timeIterator = Integer.parseInt(file.nameWithoutExtension.split("-")[0])
+                val timeIterator = file.nameWithoutExtension.split("-")[0].toLong()
                 if (timeIterator > playlistPointer && timeIterator < nextTime) {
                     nextTime = timeIterator
                     nextPath = file.getAbsolutePath()
-                    println(timeIterator)
+                    println(timeIterator.toString())
                 }
             }
             catch (ex : Exception) {
-                println("Skipping " + file.nameWithoutExtension)
+                println("Skipping " + file.nameWithoutExtension + ".  Reason: " + ex.toString())
             }
         }
         println(nextPath)
         println("---")
-        if (nextTime != Integer.MAX_VALUE) {
+        if (nextTime != Long.MAX_VALUE) {
             playlistPointer = nextTime
             selectedMIDIFile = File(nextPath)
             beginMidis2jam2()
@@ -292,8 +292,8 @@ fun Launcher(): LauncherController {
             value = text!!,
             onValueChange = {
                 try {
-                    println("FGSFDS trying to parse the value " + it.toString())
-                    playlistPointer = Integer.parseInt(it.toString())
+                    println("FGSFDS trying to parse the value " + it)
+                    playlistPointer = it.toLong();
                 }
                 catch (ex : NumberFormatException) {
                     println("FAILURE " + ex.toString())
