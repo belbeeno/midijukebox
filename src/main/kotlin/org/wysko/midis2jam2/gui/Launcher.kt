@@ -172,6 +172,8 @@ fun Launcher(): LauncherController {
     /* MIDI File */
     var selectedMIDIFile: File? by remember { mutableStateOf(null) }
     var playlist: File? by remember { mutableStateOf(null) }
+    var submitter: String by remember { mutableStateOf("") }
+    var songname: String by remember { mutableStateOf("") }
 
     /* Playlist pointer */
     var playlistPointer: Long by remember { mutableStateOf(0L) }
@@ -250,16 +252,21 @@ fun Launcher(): LauncherController {
         val files = playlist!!.listFiles()
         var nextTime = Long.MAX_VALUE
         var nextPath = ""
+        var nextSubmitter = ""
+        var nextSongname = ""
         for (file in files) {
             if (!(file?.extension.equals("mid") == true || file?.extension.equals("midi") == true))
             {
                 continue
             }
             try {
-                val timeIterator = file.nameWithoutExtension.split("-")[0].toLong()
+                val splitValues = file.nameWithoutExtension.split("-")
+                val timeIterator = splitValues[0].toLong()
                 if (timeIterator > playlistPointer && timeIterator < nextTime) {
                     nextTime = timeIterator
                     nextPath = file.getAbsolutePath()
+                    nextSubmitter = splitValues[1]
+                    nextSongname = splitValues[2]
                     println(timeIterator.toString())
                 }
             }
@@ -272,6 +279,9 @@ fun Launcher(): LauncherController {
         if (nextTime != Long.MAX_VALUE) {
             playlistPointer = nextTime
             selectedMIDIFile = File(nextPath)
+            submitter = nextSubmitter
+            songname = nextSongname
+            Thread.sleep(5000)
             beginMidis2jam2()
             println("FGSFEDS done")
         }
@@ -305,6 +315,27 @@ fun Launcher(): LauncherController {
             modifier = Modifier.padding(0.dp, 0.dp, 0.dp, 16.dp).width(500.dp),
             label = { Text("Playlist Position") },
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+        )
+    }
+
+    @Composable
+    fun SubmitterTextField() {
+        TextField(
+            value = submitter,
+            onValueChange = {},
+            singleLine = true,
+            modifier = Modifier.padding(0.dp, 0.dp, 0.dp, 16.dp).width(500.dp),
+            label = { Text("Current Submitter") }
+        )
+    }
+    @Composable
+    fun CurrentSongTextField() {
+        TextField(
+            value = songname,
+            onValueChange = {},
+            singleLine = true,
+            modifier = Modifier.padding(0.dp, 0.dp, 0.dp, 16.dp).width(500.dp),
+            label = { Text("Current Song Filename") }
         )
     }
 
@@ -347,6 +378,13 @@ fun Launcher(): LauncherController {
                                 launcherSelectedMIDIFile = it
                             }
                             NumberTextField()
+
+                            Divider(modifier = Modifier.padding(16.dp).width(width))
+                            SubmitterTextField()
+                            CurrentSongTextField()
+                            Divider(modifier = Modifier.padding(16.dp).width(width))
+
+                            /*
                             SimpleExposedDropDownMenu(
                                 values = midiDevices,
                                 selectedIndex = midiDevices.indexOf(selectedMidiDevice),
@@ -404,7 +442,7 @@ fun Launcher(): LauncherController {
                                     }
                                 }
                             }
-
+                            */
                             Row(
                                 modifier = Modifier.clickable {
                                     SettingsModal().apply {
