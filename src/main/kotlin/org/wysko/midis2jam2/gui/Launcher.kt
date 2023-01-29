@@ -71,6 +71,8 @@ import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.res.loadImageBitmap
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.useResource
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -89,6 +91,7 @@ import java.awt.Dimension
 import java.io.File
 import java.io.FileReader
 import java.io.FileWriter
+import java.lang.Runnable
 import java.text.MessageFormat
 import java.util.Locale
 import java.util.Properties
@@ -177,6 +180,7 @@ fun Launcher(): LauncherController {
 
     /* Playlist pointer */
     var playlistPointer: Long by remember { mutableStateOf(0L) }
+    var playlistPointerText: String? by remember { mutableStateOf("") }
 
     /* MIDI Device */
     val midiDevices = MidiSystem.getMidiDeviceInfo().map { it.name }.toList().filter { it != "Real Time Sequencer" }
@@ -278,12 +282,19 @@ fun Launcher(): LauncherController {
         println("---")
         if (nextTime != Long.MAX_VALUE) {
             playlistPointer = nextTime
+            playlistPointerText = playlistPointer.toString()
             selectedMIDIFile = File(nextPath)
             submitter = nextSubmitter
             songname = nextSongname
-            Thread.sleep(5000)
-            beginMidis2jam2()
-            println("FGSFEDS done")
+            val r = object : Runnable {
+                override fun run() { 
+                    Thread.sleep(5000)
+                    beginMidis2jam2()
+                    println("FGSFEDS done")
+                }
+            }
+            Thread(r).start()
+            //beginMidis2jam2()
         }
         else {
             selectedMIDIFile = playlist
@@ -297,9 +308,8 @@ fun Launcher(): LauncherController {
 
     @Composable
     fun NumberTextField() {
-        var text: String? by remember { mutableStateOf("") }
         TextField(
-            value = text!!,
+            value = playlistPointerText!!,
             onValueChange = {
                 try {
                     println("FGSFDS trying to parse the value " + it)
@@ -309,7 +319,7 @@ fun Launcher(): LauncherController {
                     println("FAILURE " + ex.toString())
                     playlistPointer = 0
                 }
-                text = playlistPointer.toString()
+                playlistPointerText = playlistPointer.toString()
             },
             singleLine = true,
             modifier = Modifier.padding(0.dp, 0.dp, 0.dp, 16.dp).width(500.dp),
@@ -324,6 +334,10 @@ fun Launcher(): LauncherController {
             value = submitter,
             onValueChange = {},
             singleLine = true,
+            textStyle = TextStyle(
+                fontSize = 32.sp,
+                fontWeight = FontWeight.W900,
+            ),
             modifier = Modifier.padding(0.dp, 0.dp, 0.dp, 16.dp).width(500.dp),
             label = { Text("Current Submitter") }
         )
@@ -334,6 +348,10 @@ fun Launcher(): LauncherController {
             value = songname,
             onValueChange = {},
             singleLine = true,
+            textStyle = TextStyle(
+                fontSize = 32.sp,
+                fontWeight = FontWeight.W900,
+            ),
             modifier = Modifier.padding(0.dp, 0.dp, 0.dp, 16.dp).width(500.dp),
             label = { Text("Current Song Filename") }
         )
